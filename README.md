@@ -42,7 +42,16 @@ README.md
 
 `settings.kts` in one glance:
 - **Templates** `ConanBuildLinux` / `ConanBuildWindows` / `PublishToProGet` — the shared shape every leaf inherits.
-- **Factories** `conanPackage(pkg)` and `grpcLine(line, version)` — one call builds a package's whole subtree (arch leaves + publish).
+- **Factories** `conanPackage(pkg)` and `grpcLine(line, version)` — one call builds a
+  package's whole subtree, in the **same shape as the real FMT_CONAN / GRPC_CONAN /
+  GTEST_CONAN** projects:
+  ```
+  <PKG>_CONAN
+    ├─ PUBLISH <PKG> TO CONAN PROGET
+    ├─ Linux      → <PKG> BUILD Conan x86_64
+    ├─ Linux ARM  → <PKG> BUILD Conan arm / arm64
+    └─ Windows    → <PKG> BUILD Conan Windows x64
+  ```
 - **The list** at the bottom of `project { }` — the only thing you edit day to day:
   ```kotlin
   val packages = listOf(

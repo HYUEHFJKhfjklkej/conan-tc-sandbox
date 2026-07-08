@@ -42,45 +42,68 @@ data class ConanPkg(
     val windows: Boolean = true
 )
 
-/** Standalone single package: N Linux/ARM leaves (+ optional Windows) + one publish. */
+/*
+ * Both factories reproduce the SAME tree shape as the real FMT_CONAN / GRPC_CONAN /
+ * GTEST_CONAN projects on the screenshot:
+ *
+ *   <PKG>_CONAN
+ *     ├─ PUBLISH <PKG> TO CONAN PROGET        (publish config at package level)
+ *     ├─ Linux        └─ <PKG> BUILD Conan x86_64
+ *     ├─ Linux ARM    ├─ <PKG> BUILD Conan arm
+ *     │               └─ <PKG> BUILD Conan arm64
+ *     └─ Windows      └─ <PKG> BUILD Conan Windows x64
+ */
+
+/** Standalone single package (gtest, fmt, zlib, …) as a <PKG>_CONAN subtree. */
 fun Project.conanPackage(p: ConanPkg) {
     val idBase = p.name.replaceFirstChar { it.uppercase() }.replace("-", "")
+    val leaves = mutableListOf<BuildType>()
 
-    val builds = p.arches.map { arch ->
+    fun linuxLeaf(sp: Project, arch: String) = sp.buildType {
+        id("${idBase}_Build_${arch.replace("-", "_")}")
+        name = "${p.name} BUILD Conan $arch"
+        templates(ConanBuildLinux)
+        params {
+            param("pkg.name", p.name)
+            param("pkg.version", p.version)   // human-readable, verbatim
+            param("pkg.arch", arch)
+        }
+    }.also { leaves += it }
+
+    subProject {
+        id("${idBase}_CONAN")
+        name = "${p.name.uppercase()}_CONAN"
+
+        subProject {
+            id("${idBase}_Linux"); name = "Linux"
+            p.arches.filter { it == "x86_64" }.forEach { linuxLeaf(this, it) }
+        }
+        subProject {
+            id("${idBase}_LinuxARM"); name = "Linux ARM"
+            p.arches.filter { it == "arm" || it == "arm64" }.forEach { linuxLeaf(this, it) }
+        }
+        if (p.windows) subProject {
+            id("${idBase}_Windows"); name = "Windows"
+            leaves += buildType {
+                id("${idBase}_Build_win_x64")
+                name = "${p.name} BUILD Conan Windows x64"
+                templates(ConanBuildWindows)
+                params {
+                    param("pkg.name", p.name)
+                    param("pkg.version", p.version)
+                    param("win.profile", "win-v143-x64")
+                    param("win.slot", "win-x64")
+                }
+            }
+        }
+
         buildType {
-            id("${idBase}_Build_${arch.replace("-", "_")}")
-            name = "${p.name} BUILD Conan $arch"
-            templates(ConanBuildLinux)
-            params {
-                param("pkg.name", p.name)
-                param("pkg.version", p.version)   // human-readable, verbatim
-                param("pkg.arch", arch)
-            }
+            id("${idBase}_Publish")
+            name = "PUBLISH ${p.name.uppercase()} TO CONAN PROGET"
+            templates(PublishToProGet)
+            dependencies { leaves.forEach { b -> artifacts(b) { artifactRules = "*.nupkg => nupkg/" } } }
+            triggers { finishBuildTrigger { buildType = leaves.first().id.toString() } }
         }
-    }.toMutableList()
-
-    if (p.windows) {
-        builds += buildType {
-            id("${idBase}_Build_win_x64")
-            name = "${p.name} BUILD Conan Windows x64"
-            templates(ConanBuildWindows)
-            params {
-                param("pkg.name", p.name)
-                param("pkg.version", p.version)
-                param("win.profile", "win-v143-x64")
-                param("win.slot", "win-x64")
-            }
-        }
-    }
-
-    buildType {
-        id("${idBase}_Publish")
-        name = "PUBLISH ${p.name} TO CONAN PROGET"
-        templates(PublishToProGet)
-        dependencies {
-            builds.forEach { b -> artifacts(b) { artifactRules = "*.nupkg => nupkg/" } }
-        }
-        triggers { finishBuildTrigger { buildType = builds.first().id.toString() } }
     }
 }
 
@@ -88,28 +111,61 @@ fun Project.conanPackage(p: ConanPkg) {
  * grpc line — the exception. Version is NOT a free variable: build_<line>_nodocker.sh
  * pins a 7-package stack and needs grpc/target_info/grpc_<ver>.yml. So `line`
  * selects the driver; `version` is display-only. Overrides the derived driver/output.
+ * Same <PKG>_CONAN tree shape as conanPackage().
  */
-fun Project.grpcLine(line: String, version: String, arches: List<String> = listOf("x86_64", "arm", "arm64")) {
-    val builds = arches.map { arch ->
-        buildType {
-            id("Grpc_${line}_Build_${arch.replace("-", "_")}")
-            name = "grpc-$line BUILD Conan $arch"
-            templates(ConanBuildLinux)
-            params {
-                param("pkg.name", "grpc")
-                param("pkg.version", version)                       // display only
-                param("pkg.arch", arch)
-                param("pkg.driver", "build_${line}_nodocker.sh")    // override derived
-                param("pkg.output", "output-grpc-$line-$arch")      // override derived
+fun Project.grpcLine(line: String, version: String,
+                     arches: List<String> = listOf("x86_64", "arm", "arm64"), windows: Boolean = true) {
+    val leaves = mutableListOf<BuildType>()
+
+    fun linuxLeaf(sp: Project, arch: String) = sp.buildType {
+        id("Grpc_${line}_Build_${arch.replace("-", "_")}")
+        name = "grpc-$line BUILD Conan $arch"
+        templates(ConanBuildLinux)
+        params {
+            param("pkg.name", "grpc")
+            param("pkg.version", version)                       // display only
+            param("pkg.arch", arch)
+            param("pkg.driver", "build_${line}_nodocker.sh")    // override derived
+            param("pkg.output", "output-grpc-$line-$arch")      // override derived
+        }
+    }.also { leaves += it }
+
+    subProject {
+        id("Grpc_${line}_CONAN")
+        name = "GRPC_${line}_CONAN"
+
+        subProject {
+            id("Grpc_${line}_Linux"); name = "Linux"
+            arches.filter { it == "x86_64" }.forEach { linuxLeaf(this, it) }
+        }
+        subProject {
+            id("Grpc_${line}_LinuxARM"); name = "Linux ARM"
+            arches.filter { it == "arm" || it == "arm64" }.forEach { linuxLeaf(this, it) }
+        }
+        if (windows) subProject {
+            id("Grpc_${line}_Windows"); name = "Windows"
+            leaves += buildType {
+                id("Grpc_${line}_Build_win_x64")
+                name = "grpc-$line BUILD Conan Windows x64"
+                templates(ConanBuildWindows)
+                params {
+                    param("pkg.name", "grpc")
+                    param("pkg.version", version)
+                    param("win.profile", "win-v143-x64")
+                    param("win.slot", "win-x64")
+                    param("pkg.driver.win", "run_grpc_${line}_win.bat")   // override derived
+                    param("pkg.output.win", "output-grpc-$line-win")      // override derived
+                }
             }
         }
-    }
-    buildType {
-        id("Grpc_${line}_Publish")
-        name = "PUBLISH grpc-$line TO CONAN PROGET"
-        templates(PublishToProGet)
-        dependencies { builds.forEach { b -> artifacts(b) { artifactRules = "*.nupkg => nupkg/" } } }
-        triggers { finishBuildTrigger { buildType = builds.first().id.toString() } }
+
+        buildType {
+            id("Grpc_${line}_Publish")
+            name = "PUBLISH GRPC_$line TO CONAN PROGET"
+            templates(PublishToProGet)
+            dependencies { leaves.forEach { b -> artifacts(b) { artifactRules = "*.nupkg => nupkg/" } } }
+            triggers { finishBuildTrigger { buildType = leaves.first().id.toString() } }
+        }
     }
 }
 
