@@ -2,38 +2,27 @@ import jetbrains.buildServer.configs.kotlin.v2018_1.*
 import jetbrains.buildServer.configs.kotlin.v2018_1.buildSteps.ScriptBuildStep
 import jetbrains.buildServer.configs.kotlin.v2018_1.buildSteps.script
 import jetbrains.buildServer.configs.kotlin.v2018_1.triggers.finishBuildTrigger
-import jetbrains.buildServer.configs.kotlin.v2018_1.vcs.GitVcsRoot
 
 /*
- * TeamCity Kotlin DSL — SANDBOX project (IN-658 Conan package builds).
+ * TeamCity Kotlin DSL — CONAN third-party project (IN-658 Conan package builds).
  * Target server: TeamCity Enterprise 2018.1.3  =>  API version "2018.1".
  *
- * Idea: describe a Conan package ONCE (a Template + a factory function), then
- * drive everything from a data list. Adding a package = one line; bumping a
- * version = one string. Build logic itself stays in conan-recipes/test-astra/*.sh —
+ * Three templated package builds: grpc, fmt, gtest. Each is one <PKG>_CONAN subtree
+ * (Linux x86_64 / Linux ARM arm+arm64 / Windows x64 + a PUBLISH config). Describe a
+ * package ONCE via conanPackage()/grpcLine(); adding a package = one line, bumping a
+ * version = one string. Build logic itself lives in conan-recipes/test-astra/*.sh —
  * the DSL only wires configs + parameters.
  *
- * PLACEHOLDERS to fill before first successful apply are marked  <FILL: ...>.
- * This file cannot be compiled on the authoring Mac (no TeamCity DSL jars) — TC
- * validates it on apply and reports errors on the Versioned Settings page.
+ * VCS: builds check out the conan-recipes repo through the EXISTING shared, parametrized
+ * root  AbsoluteId("Bitbucket")  (url scm/%repoProject%/%repoName%.git, auth Password/git).
+ * repoProject/repoName below point it at dev/conan. No new GitVcsRoot, no authMethod to
+ * fill — this is exactly what TeamCity generated from the working manual FMT_CONAN config.
  */
 
 version = "2018.1"
 
 // ---------------------------------------------------------------------------
-// VCS root of the BUILD repo (conan-recipes) — what build configs check out to
-// reach test-astra/*.sh. This is NOT the settings repo (conan-tc-sandbox).
-// ---------------------------------------------------------------------------
-object ConanRecipesVcs : GitVcsRoot({
-    id("ConanRecipesVcs")
-    name = "conan-recipes (develop)"
-    url = "<FILL: git URL of conan-recipes on your Bitbucket>"   // e.g. ssh://git@bitbucket.../conan.git
-    branch = "refs/heads/develop"
-    // authMethod = ...  <FILL: uploadedKey / password, as your other VCS roots use>
-})
-
-// ---------------------------------------------------------------------------
-// Data model + factories — "describe everything template-style"
+// Data model + factories — describe everything template-style
 // ---------------------------------------------------------------------------
 data class ConanPkg(
     val name: String,
@@ -43,8 +32,7 @@ data class ConanPkg(
 )
 
 /*
- * Both factories reproduce the SAME tree shape as the real FMT_CONAN / GRPC_CONAN /
- * GTEST_CONAN projects on the screenshot:
+ * Tree shape produced by both factories (matches the TC-generated FMT_CONAN):
  *
  *   <PKG>_CONAN
  *     ├─ PUBLISH <PKG> TO CONAN PROGET        (publish config at package level)
@@ -109,9 +97,8 @@ fun Project.conanPackage(p: ConanPkg) {
 
 /**
  * grpc line — the exception. Version is NOT a free variable: build_<line>_nodocker.sh
- * pins a 7-package stack and needs grpc/target_info/grpc_<ver>.yml. So `line`
- * selects the driver; `version` is display-only. Overrides the derived driver/output.
- * Same <PKG>_CONAN tree shape as conanPackage().
+ * pins a 7-package stack and needs grpc/target_info/grpc_<ver>.yml. So `line` selects
+ * the driver; `version` is display-only. Same <PKG>_CONAN tree shape as conanPackage().
  */
 fun Project.grpcLine(line: String, version: String,
                      arches: List<String> = listOf("x86_64", "arm", "arm64"), windows: Boolean = true) {
@@ -177,7 +164,7 @@ object ConanBuildLinux : Template({
     name = "Conan Build Linux"
     description = "One Conan package, one arch, built inside grpc-tc-mirror docker image -> legacy .nupkg"
 
-    vcs { root(ConanRecipesVcs) }
+    vcs { root(AbsoluteId("Bitbucket")) }
 
     params {
         // human knobs (a leaf overrides these)
@@ -185,7 +172,7 @@ object ConanBuildLinux : Template({
         param("pkg.version", "")
         param("pkg.arch", "x86_64")   // x86_64 | arm | arm64
         // derived (leaf leaves as-is)
-        param("docker.image", "%REGISTRY%/library/grpc-tc-mirror-%pkg.arch%:0.1.0")
+        param("docker.image", "%REGISTRY%/grpc-tc-mirror-%pkg.arch%:0.1.0")
         param("pkg.driver", "build_%pkg.name%_nodocker.sh")
         param("pkg.output", "output-%pkg.name%-%pkg.arch%")
     }
@@ -193,10 +180,13 @@ object ConanBuildLinux : Template({
     steps {
         script {
             name = "conan build"
-            scriptContent = "ARCH=%pkg.arch% PKG_VERSION=%pkg.version% ./test-astra/%pkg.driver%"
+            scriptContent = """
+                #!/bin/bash
+                set -euo pipefail
+                export REGISTRY="%REGISTRY%"
+                ARCH=%pkg.arch% PKG_VERSION=%pkg.version% bash ./test-astra/%pkg.driver%
+            """.trimIndent()
             // "Run step within Docker container" (TeamCity 2018.1 build-step docker wrapper).
-            // If these typed props don't resolve on your exact 2018.1 build, set the same
-            // via the UI on the template step once — the rest of the DSL is unaffected.
             dockerImage = "%docker.image%"
             dockerImagePlatform = ScriptBuildStep.ImagePlatform.Linux
             dockerPull = true
@@ -206,7 +196,8 @@ object ConanBuildLinux : Template({
     artifactRules = "%pkg.output%/*.nupkg => %pkg.arch%"
 
     requirements {
-        exists("docker.server.version")
+        equals("system.agent.type", "build-linux")
+        equals("system.agent.version", "2")
     }
 })
 
@@ -215,7 +206,7 @@ object ConanBuildWindows : Template({
     name = "Conan Build Windows"
     description = "One Conan package on a native MSVC agent (no docker) -> legacy .nupkg. NOT yet legacy-byte-validated."
 
-    vcs { root(ConanRecipesVcs) }
+    vcs { root(AbsoluteId("Bitbucket")) }
 
     params {
         param("pkg.name", "")
@@ -245,7 +236,7 @@ object PublishToProGet : Template({
     name = "Publish to Conan ProGet"
     description = "Collect leaf .nupkg (via artifact deps) and push to the `conan` NuGet feed on ProGet"
 
-    vcs { root(ConanRecipesVcs) }
+    vcs { root(AbsoluteId("Bitbucket")) }
 
     steps {
         script {
@@ -261,9 +252,8 @@ object PublishToProGet : Template({
 // Project root — global params + the package list (THIS is what you edit daily)
 // ---------------------------------------------------------------------------
 project {
-    description = "SANDBOX: Conan packages described via Kotlin DSL (IN-658). Add a package = one line below."
+    description = "CONAN third-party: grpc / fmt / gtest package builds via Kotlin DSL (IN-658). Add a package = one line below."
 
-    vcsRoot(ConanRecipesVcs)
     template(ConanBuildLinux)
     template(ConanBuildWindows)
     template(PublishToProGet)
@@ -272,23 +262,19 @@ project {
         param("REGISTRY", "proget.inc.elara.local/main")
         param("PROGET_URL", "http://proget.inc.elara.local")
         param("FEED", "conan")
+        // drive the shared AbsoluteId("Bitbucket") root at the conan-recipes repo
+        param("repoProject", "dev")
+        param("repoName", "conan")
         param("env.LEGACY_NUPKG_LINKAGE", "shared")        // StaticRT slot -> "static"
         param("env.LEGACY_NUPKG_VERSION_SUFFIX", "")       // ".1" to coexist with legacy on ProGet
         // With "Store secure values outside of VCS" ON, TC replaces the value with a
         // credentialsJSON:<uuid> token on first apply — leave the placeholder, add the
         // real key once in the UI.
-        password("ProGet.ApiKey", "<FILL: credentialsJSON token after first apply>", label = "ProGet API key (conan feed)")
+        password("ProGet.ApiKey", "credentialsJSON:REPLACE_AFTER_FIRST_APPLY", label = "ProGet API key (conan feed)")
     }
 
-    // ===== the data-driven package list =====
-    val packages = listOf(
-        ConanPkg("gtest", "1.17.0"),
-        ConanPkg("fmt", "11.2.0")
-        // ConanPkg("zlib", "1.3.1"),      // <- new standalone package: just add a line
-    )
-    packages.forEach { conanPackage(it) }
-
-    // grpc lines (7-package stack each — driver-pinned, version is display only)
-    grpcLine("1601", "1.60.1")
-    grpcLine("1781", "1.78.1")
+    // ===== the three templated package builds =====
+    conanPackage(ConanPkg("gtest", "1.17.0"))
+    conanPackage(ConanPkg("fmt", "11.2.0"))
+    grpcLine("1601", "1.60.1")   // grpc — driver-pinned line; version is display only
 }

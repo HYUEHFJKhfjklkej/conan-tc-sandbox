@@ -24,8 +24,8 @@
     <repositories>
         <repository>
             <id>teamcity-server</id>
-            <!-- <FILL: your TeamCity host> — TC writes the correct URL on first apply -->
-            <url>http://&lt;your-teamcity-host&gt;/app/dsl-plugins-repository</url>
+            <!-- Local IDEA autocomplete only; TC rewrites this on first apply. -->
+            <url>http://teamcity.inc.elara.local/app/dsl-plugins-repository</url>
         </repository>
     </repositories>
 
