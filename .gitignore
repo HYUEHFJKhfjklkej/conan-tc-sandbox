@@ -1,0 +1,6 @@
+# Maven / IDE artifacts from local DSL editing — settings.kts + pom.xml are the only
+# files TeamCity reads from this repo.
+.teamcity/target/
+target/
+*.iml
+.idea/
