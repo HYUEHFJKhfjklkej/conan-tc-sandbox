@@ -325,8 +325,11 @@ project {
         // auto-commits a patches/ file that then fails with "parameter not found").
     }
 
-    // ===== the three templated package builds =====
+    // ===== the templated package builds =====
     conanPackage(ConanPkg("gtest", "1.17.0"))
     conanPackage(ConanPkg("fmt", "11.2.0"))
-    grpcLine("1601", "1.60.1")   // grpc - driver-pinned line; version is display only
+    // grpc lines - driver-pinned (7-package stack each); version is display only.
+    // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
+    grpcLine("1601", "1.60.1")   // parity with legacy GR910
+    grpcLine("1781", "1.78.1")   // newest line
 }
