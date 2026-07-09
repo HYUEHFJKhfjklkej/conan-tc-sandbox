@@ -48,23 +48,23 @@ data class ConanPkg(
 
 /*
  * Config codes: <XX><digits> where XX = two-letter package code (GR/GT/FM/...).
- * The digit block names the BUILD TEMPLATE that produces the config.
- * Legacy hand-made templates own the 1xx block (GR112/113 Linux, GR10x Windows)
- * and 900/910 (PACKAGE/RELEASE stages). OUR Conan templates get their own block:
+ * The digit block names the BUILD TEMPLATE that produces the config, per the
+ * Root-project template registry. Taken there already: 1xx CMAKE builds,
+ * 200/250/260 DOTNETCORE*, 300/310 DOTNET, 500/550 GENDOC/PRODUCT, 700/710,
+ * 800-860, 888 DOCKER, 900/910 CMAKE PACKAGE/RELEASE.
+ * OUR Conan templates take the FREE 4xx block, tail digits mirror CMAKE:
  *
- *   2xx = ConanBuild* templates (2 = Conan; 2nd digit: 0 Windows / 1 Linux / 2 ARM;
- *         3rd digit: arch/slot, same convention as legacy)
- *     203 = Windows x64 DynamicRT  (ConanBuildWindows)
- *     213 = Linux   x64 DynamicRT  (ConanBuildLinux, x86_64)
- *     221 = Linux   ARM DynamicRT  (ConanBuildLinux, arm)
- *     222 = Linux ARM64 DynamicRT  (ConanBuildLinux, arm64)
- *   920 = Conan publish stage      (PublishToProGet; legacy PACKAGE is 900)
+ *     403 = Windows x64 DynRT   (ConanBuildWindows;  CMAKE analog 103)
+ *     413 = Linux   x64 DynRT   (ConanBuildLinux x86_64; CMAKE analog 113)
+ *     421 = Linux   ARM DynRT   (ConanBuildLinux arm;    CMAKE analog 121)
+ *     422 = Linux ARM64 DynRT   (ConanBuildLinux arm64;  CMAKE analog 122)
+ *     920 = Conan publish stage (PublishToProGet; CMAKE PACKAGE is 900) - free in 9xx
  *
- * DynamicRT slot only for now (LEGACY_NUPKG_LINKAGE=shared). Change the numbers
- * below in ONE place if the lead wants a different block.
+ * DynamicRT slot only for now (LEGACY_NUPKG_LINKAGE=shared). Numbers live in ONE
+ * place below - trivial to change if the lead assigns a different block.
  */
-val ARCH_CODE = mapOf("x86_64" to "213", "arm" to "221", "arm64" to "222")
-val WIN_CODE = "203"
+val ARCH_CODE = mapOf("x86_64" to "413", "arm" to "421", "arm64" to "422")
+val WIN_CODE = "403"
 val PUBLISH_CODE = "920"
 
 /*
@@ -262,7 +262,7 @@ fun Project.grpcLine(
 // ---------------------------------------------------------------------------
 object ConanBuildLinux : Template({
     id("ConanBuildLinux")
-    name = "Conan Build Linux [*213 / *221 / *222]"
+    name = "CONAN 413/421/422 BUILD Linux DynRT"
     description = "One Conan package, one arch, built inside grpc-tc-mirror docker image -> legacy .nupkg"
 
     // legacy-style human-readable build numbers: #1.17.0-5 instead of #5
@@ -306,7 +306,7 @@ object ConanBuildLinux : Template({
 
 object ConanBuildWindows : Template({
     id("ConanBuildWindows")
-    name = "Conan Build Windows [*203]"
+    name = "CONAN 403 BUILD Windows x64 DynRT"
     description = "One Conan package on a native MSVC agent (no docker) -> legacy .nupkg. NOT yet legacy-byte-validated."
 
     // legacy-style human-readable build numbers: #1.17.0-5 instead of #5
@@ -343,7 +343,7 @@ object ConanBuildWindows : Template({
 
 object PublishToProGet : Template({
     id("PublishToProGet")
-    name = "Publish to Conan ProGet [*920]"
+    name = "CONAN 920 PUBLISH TO PROGET"
     description = "Collect leaf .nupkg (via artifact deps) and push to the conan NuGet feed on ProGet"
 
     vcs {
