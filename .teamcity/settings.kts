@@ -40,8 +40,32 @@ data class ConanPkg(
     // Windows nupkg currently carry a wrong compiler tag (v194 instead of legacy v143,
     // deployer _short_compiler fix pending) - keep building the win leaf, but do NOT
     // feed it into PUBLISH until the deployer emits legacy tags. Flip per package.
-    val publishWindows: Boolean = false
+    val publishWindows: Boolean = false,
+    // two-letter legacy config code (GR = grpc, GT = gtest, FM = fmt, ...);
+    // empty = derived from the first two letters of the name
+    val code: String = ""
 )
+
+/*
+ * Config codes: <XX><digits> where XX = two-letter package code (GR/GT/FM/...).
+ * The digit block names the BUILD TEMPLATE that produces the config.
+ * Legacy hand-made templates own the 1xx block (GR112/113 Linux, GR10x Windows)
+ * and 900/910 (PACKAGE/RELEASE stages). OUR Conan templates get their own block:
+ *
+ *   2xx = ConanBuild* templates (2 = Conan; 2nd digit: 0 Windows / 1 Linux / 2 ARM;
+ *         3rd digit: arch/slot, same convention as legacy)
+ *     203 = Windows x64 DynamicRT  (ConanBuildWindows)
+ *     213 = Linux   x64 DynamicRT  (ConanBuildLinux, x86_64)
+ *     221 = Linux   ARM DynamicRT  (ConanBuildLinux, arm)
+ *     222 = Linux ARM64 DynamicRT  (ConanBuildLinux, arm64)
+ *   920 = Conan publish stage      (PublishToProGet; legacy PACKAGE is 900)
+ *
+ * DynamicRT slot only for now (LEGACY_NUPKG_LINKAGE=shared). Change the numbers
+ * below in ONE place if the lead wants a different block.
+ */
+val ARCH_CODE = mapOf("x86_64" to "213", "arm" to "221", "arm64" to "222")
+val WIN_CODE = "203"
+val PUBLISH_CODE = "920"
 
 /*
  * Tree shape produced by both factories (matches the TC-generated FMT_CONAN):
@@ -56,11 +80,12 @@ data class ConanPkg(
 /** Standalone single package (gtest, fmt, zlib, ...) as a <PKG>_CONAN subtree. */
 fun Project.conanPackage(p: ConanPkg) {
     val idBase = p.name.capitalize().replace("-", "")   // Kotlin 1.2 API (TC 2018.1 compiler)
+    val code = if (p.code.isNotEmpty()) p.code else p.name.take(2).toUpperCase()
     val leaves = mutableListOf<BuildType>()
 
     fun linuxLeaf(sp: Project, arch: String) = sp.buildType {
         id("${idBase}_Build_${arch.replace("-", "_")}")
-        name = "${p.name} BUILD Conan $arch"
+        name = "$code${ARCH_CODE.getValue(arch)} BUILD Conan $arch"
         templates(ConanBuildLinux)
         params {
             param("pkg.name", p.name)
@@ -90,7 +115,7 @@ fun Project.conanPackage(p: ConanPkg) {
             name = "Windows"
             val winLeaf = buildType {
                 id("${idBase}_Build_win_x64")
-                name = "${p.name} BUILD Conan Windows x64"
+                name = "$code$WIN_CODE BUILD Conan Windows x64"
                 templates(ConanBuildWindows)
                 params {
                     param("pkg.name", p.name)
@@ -104,7 +129,7 @@ fun Project.conanPackage(p: ConanPkg) {
 
         buildType {
             id("${idBase}_Publish")
-            name = "PUBLISH ${p.name.toUpperCase()} TO CONAN PROGET"
+            name = "$code$PUBLISH_CODE PUBLISH ${p.name.toUpperCase()} TO CONAN PROGET"
             templates(PublishToProGet)
             buildNumberPattern = "${p.version}-%build.counter%"
             // snapshot + same-chain artifacts: one publish waits for ALL leaves of the
@@ -156,7 +181,7 @@ fun Project.grpcLine(
 
     fun linuxLeaf(sp: Project, arch: String) = sp.buildType {
         id("Grpc_${line}_Build_${arch.replace("-", "_")}")
-        name = "grpc-$line BUILD Conan $arch"
+        name = "GR${ARCH_CODE.getValue(arch)} BUILD Conan $arch"
         templates(ConanBuildLinux)
         params {
             param("pkg.name", "grpc")
@@ -187,7 +212,7 @@ fun Project.grpcLine(
             name = "Windows"
             val winLeaf = buildType {
                 id("Grpc_${line}_Build_win_x64")
-                name = "grpc-$line BUILD Conan Windows x64"
+                name = "GR$WIN_CODE BUILD Conan Windows x64"
                 templates(ConanBuildWindows)
                 params {
                     param("pkg.name", "grpc")
@@ -203,7 +228,7 @@ fun Project.grpcLine(
 
         buildType {
             id("Grpc_${line}_Publish")
-            name = "PUBLISH GRPC_$line TO CONAN PROGET"
+            name = "GR$PUBLISH_CODE PUBLISH GRPC_$line TO CONAN PROGET"
             templates(PublishToProGet)
             buildNumberPattern = "$version-%build.counter%"
             dependencies {
@@ -237,7 +262,7 @@ fun Project.grpcLine(
 // ---------------------------------------------------------------------------
 object ConanBuildLinux : Template({
     id("ConanBuildLinux")
-    name = "Conan Build Linux"
+    name = "Conan Build Linux [*213 / *221 / *222]"
     description = "One Conan package, one arch, built inside grpc-tc-mirror docker image -> legacy .nupkg"
 
     // legacy-style human-readable build numbers: #1.17.0-5 instead of #5
@@ -281,7 +306,7 @@ object ConanBuildLinux : Template({
 
 object ConanBuildWindows : Template({
     id("ConanBuildWindows")
-    name = "Conan Build Windows"
+    name = "Conan Build Windows [*203]"
     description = "One Conan package on a native MSVC agent (no docker) -> legacy .nupkg. NOT yet legacy-byte-validated."
 
     // legacy-style human-readable build numbers: #1.17.0-5 instead of #5
@@ -318,7 +343,7 @@ object ConanBuildWindows : Template({
 
 object PublishToProGet : Template({
     id("PublishToProGet")
-    name = "Publish to Conan ProGet"
+    name = "Publish to Conan ProGet [*920]"
     description = "Collect leaf .nupkg (via artifact deps) and push to the conan NuGet feed on ProGet"
 
     vcs {
