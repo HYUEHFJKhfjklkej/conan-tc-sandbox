@@ -67,7 +67,9 @@ fun Project.conanPackage(p: ConanPkg) {
 
     subProject {
         id("${idBase}_CONAN")
-        name = "${p.name.toUpperCase()}_CONAN"
+        // version lives in the display NAME (readable in the tree at a glance) while the
+        // id stays version-free - bumping a version keeps build history continuous
+        name = "${p.name.toUpperCase()}_CONAN  ${p.version}"
 
         subProject {
             id("${idBase}_Linux")
@@ -100,6 +102,7 @@ fun Project.conanPackage(p: ConanPkg) {
             id("${idBase}_Publish")
             name = "PUBLISH ${p.name.toUpperCase()} TO CONAN PROGET"
             templates(PublishToProGet)
+            buildNumberPattern = "${p.version}-%build.counter%"
             dependencies {
                 leaves.forEach { b ->
                     artifacts(b) {
@@ -145,7 +148,8 @@ fun Project.grpcLine(
 
     subProject {
         id("Grpc_${line}_CONAN")
-        name = "GRPC_${line}_CONAN"
+        // real stack version readable in the tree; id keeps the line only
+        name = "GRPC_CONAN  $version  (line $line)"
 
         subProject {
             id("Grpc_${line}_Linux")
@@ -180,6 +184,7 @@ fun Project.grpcLine(
             id("Grpc_${line}_Publish")
             name = "PUBLISH GRPC_$line TO CONAN PROGET"
             templates(PublishToProGet)
+            buildNumberPattern = "$version-%build.counter%"
             dependencies {
                 leaves.forEach { b ->
                     artifacts(b) {
@@ -204,6 +209,9 @@ object ConanBuildLinux : Template({
     id("ConanBuildLinux")
     name = "Conan Build Linux"
     description = "One Conan package, one arch, built inside grpc-tc-mirror docker image -> legacy .nupkg"
+
+    // legacy-style human-readable build numbers: #1.17.0-5 instead of #5
+    buildNumberPattern = "%pkg.version%-%build.counter%"
 
     vcs {
         root(AbsoluteId("Bitbucket"))
@@ -245,6 +253,9 @@ object ConanBuildWindows : Template({
     id("ConanBuildWindows")
     name = "Conan Build Windows"
     description = "One Conan package on a native MSVC agent (no docker) -> legacy .nupkg. NOT yet legacy-byte-validated."
+
+    // legacy-style human-readable build numbers: #1.17.0-5 instead of #5
+    buildNumberPattern = "%pkg.version%-%build.counter%"
 
     vcs {
         root(AbsoluteId("Bitbucket"))
