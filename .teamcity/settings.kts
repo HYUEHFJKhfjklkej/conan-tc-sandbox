@@ -4,25 +4,27 @@ import jetbrains.buildServer.configs.kotlin.v2018_1.buildSteps.script
 import jetbrains.buildServer.configs.kotlin.v2018_1.triggers.finishBuildTrigger
 
 /*
- * TeamCity Kotlin DSL — CONAN third-party project (IN-658 Conan package builds).
+ * TeamCity Kotlin DSL - CONAN third-party project (IN-658 Conan package builds).
  * Target server: TeamCity Enterprise 2018.1.3  =>  API version "2018.1".
  *
  * Three templated package builds: grpc, fmt, gtest. Each is one <PKG>_CONAN subtree
  * (Linux x86_64 / Linux ARM arm+arm64 / Windows x64 + a PUBLISH config). Describe a
- * package ONCE via conanPackage()/grpcLine(); adding a package = one line, bumping a
- * version = one string. Build logic itself lives in conan-recipes/test-astra/*.sh —
+ * package ONCE via conanPackage()/grpcLine(); adding a package is one line, bumping a
+ * version is one string. Build logic itself lives in conan-recipes/test-astra/*.sh -
  * the DSL only wires configs + parameters.
  *
  * VCS: builds check out the conan-recipes repo through the EXISTING shared, parametrized
  * root  AbsoluteId("Bitbucket")  (url scm/%repoProject%/%repoName%.git, auth Password/git).
- * repoProject/repoName below point it at dev/conan. No new GitVcsRoot, no authMethod to
- * fill — this is exactly what TeamCity generated from the working manual FMT_CONAN config.
+ * repoProject/repoName below point it at dev/conan. No new GitVcsRoot, no authMethod.
+ *
+ * NOTE: this file must reach the TeamCity settings VCS repo BYTE-EXACT (via git, not
+ * copy-paste / web editor). ASCII only; do not let an editor turn " into a smart quote.
  */
 
 version = "2018.1"
 
 // ---------------------------------------------------------------------------
-// Data model + factories — describe everything template-style
+// Data model + factories - describe everything template-style
 // ---------------------------------------------------------------------------
 data class ConanPkg(
     val name: String,
@@ -35,14 +37,13 @@ data class ConanPkg(
  * Tree shape produced by both factories (matches the TC-generated FMT_CONAN):
  *
  *   <PKG>_CONAN
- *     ├─ PUBLISH <PKG> TO CONAN PROGET        (publish config at package level)
- *     ├─ Linux        └─ <PKG> BUILD Conan x86_64
- *     ├─ Linux ARM    ├─ <PKG> BUILD Conan arm
- *     │               └─ <PKG> BUILD Conan arm64
- *     └─ Windows      └─ <PKG> BUILD Conan Windows x64
+ *     - PUBLISH <PKG> TO CONAN PROGET        (publish config at package level)
+ *     - Linux        -> <PKG> BUILD Conan x86_64
+ *     - Linux ARM    -> <PKG> BUILD Conan arm, arm64
+ *     - Windows      -> <PKG> BUILD Conan Windows x64
  */
 
-/** Standalone single package (gtest, fmt, zlib, …) as a <PKG>_CONAN subtree. */
+/** Standalone single package (gtest, fmt, zlib, ...) as a <PKG>_CONAN subtree. */
 fun Project.conanPackage(p: ConanPkg) {
     val idBase = p.name.capitalize().replace("-", "")   // Kotlin 1.2 API (TC 2018.1 compiler)
     val leaves = mutableListOf<BuildType>()
@@ -53,26 +54,29 @@ fun Project.conanPackage(p: ConanPkg) {
         templates(ConanBuildLinux)
         params {
             param("pkg.name", p.name)
-            param("pkg.version", p.version)   // human-readable, verbatim
+            param("pkg.version", p.version)
             param("pkg.arch", arch)
         }
-    }.also { leaves += it }
+    }.also { leaves.add(it) }
 
     subProject {
         id("${idBase}_CONAN")
         name = "${p.name.toUpperCase()}_CONAN"
 
         subProject {
-            id("${idBase}_Linux"); name = "Linux"
+            id("${idBase}_Linux")
+            name = "Linux"
             p.arches.filter { it == "x86_64" }.forEach { linuxLeaf(this, it) }
         }
         subProject {
-            id("${idBase}_LinuxARM"); name = "Linux ARM"
+            id("${idBase}_LinuxARM")
+            name = "Linux ARM"
             p.arches.filter { it == "arm" || it == "arm64" }.forEach { linuxLeaf(this, it) }
         }
         if (p.windows) subProject {
-            id("${idBase}_Windows"); name = "Windows"
-            leaves += buildType {
+            id("${idBase}_Windows")
+            name = "Windows"
+            val winLeaf = buildType {
                 id("${idBase}_Build_win_x64")
                 name = "${p.name} BUILD Conan Windows x64"
                 templates(ConanBuildWindows)
@@ -83,25 +87,40 @@ fun Project.conanPackage(p: ConanPkg) {
                     param("win.slot", "win-x64")
                 }
             }
+            leaves.add(winLeaf)
         }
 
         buildType {
             id("${idBase}_Publish")
             name = "PUBLISH ${p.name.toUpperCase()} TO CONAN PROGET"
             templates(PublishToProGet)
-            dependencies { leaves.forEach { b -> artifacts(b) { artifactRules = "**/*.nupkg => nupkg/" } } }
-            triggers { finishBuildTrigger { buildType = leaves.first().id.toString() } }
+            dependencies {
+                leaves.forEach { b ->
+                    artifacts(b) {
+                        artifactRules = "**/*.nupkg => nupkg/"
+                    }
+                }
+            }
+            triggers {
+                finishBuildTrigger {
+                    buildType = leaves.first().id.toString()
+                }
+            }
         }
     }
 }
 
 /**
- * grpc line — the exception. Version is NOT a free variable: build_<line>_nodocker.sh
+ * grpc line - the exception. Version is NOT a free variable: build_<line>_nodocker.sh
  * pins a 7-package stack and needs grpc/target_info/grpc_<ver>.yml. So `line` selects
  * the driver; `version` is display-only. Same <PKG>_CONAN tree shape as conanPackage().
  */
-fun Project.grpcLine(line: String, version: String,
-                     arches: List<String> = listOf("x86_64", "arm", "arm64"), windows: Boolean = true) {
+fun Project.grpcLine(
+    line: String,
+    version: String,
+    arches: List<String> = listOf("x86_64", "arm", "arm64"),
+    windows: Boolean = true
+) {
     val leaves = mutableListOf<BuildType>()
 
     fun linuxLeaf(sp: Project, arch: String) = sp.buildType {
@@ -115,23 +134,26 @@ fun Project.grpcLine(line: String, version: String,
             param("pkg.driver", "build_${line}_nodocker.sh")    // override derived
             param("pkg.output", "output-grpc-$line-$arch")      // override derived
         }
-    }.also { leaves += it }
+    }.also { leaves.add(it) }
 
     subProject {
         id("Grpc_${line}_CONAN")
         name = "GRPC_${line}_CONAN"
 
         subProject {
-            id("Grpc_${line}_Linux"); name = "Linux"
+            id("Grpc_${line}_Linux")
+            name = "Linux"
             arches.filter { it == "x86_64" }.forEach { linuxLeaf(this, it) }
         }
         subProject {
-            id("Grpc_${line}_LinuxARM"); name = "Linux ARM"
+            id("Grpc_${line}_LinuxARM")
+            name = "Linux ARM"
             arches.filter { it == "arm" || it == "arm64" }.forEach { linuxLeaf(this, it) }
         }
         if (windows) subProject {
-            id("Grpc_${line}_Windows"); name = "Windows"
-            leaves += buildType {
+            id("Grpc_${line}_Windows")
+            name = "Windows"
+            val winLeaf = buildType {
                 id("Grpc_${line}_Build_win_x64")
                 name = "grpc-$line BUILD Conan Windows x64"
                 templates(ConanBuildWindows)
@@ -140,38 +162,49 @@ fun Project.grpcLine(line: String, version: String,
                     param("pkg.version", version)
                     param("win.profile", "win-v143-x64")
                     param("win.slot", "win-x64")
-                    param("pkg.driver.win", "run_grpc_${line}_win.bat")   // override derived
-                    param("pkg.output.win", "output-grpc-$line-win")      // override derived
+                    param("pkg.driver.win", "run_grpc_${line}_win.bat")
+                    param("pkg.output.win", "output-grpc-$line-win")
                 }
             }
+            leaves.add(winLeaf)
         }
 
         buildType {
             id("Grpc_${line}_Publish")
             name = "PUBLISH GRPC_$line TO CONAN PROGET"
             templates(PublishToProGet)
-            dependencies { leaves.forEach { b -> artifacts(b) { artifactRules = "**/*.nupkg => nupkg/" } } }
-            triggers { finishBuildTrigger { buildType = leaves.first().id.toString() } }
+            dependencies {
+                leaves.forEach { b ->
+                    artifacts(b) {
+                        artifactRules = "**/*.nupkg => nupkg/"
+                    }
+                }
+            }
+            triggers {
+                finishBuildTrigger {
+                    buildType = leaves.first().id.toString()
+                }
+            }
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// Templates — the shared shape every leaf inherits
+// Templates - the shared shape every leaf inherits
 // ---------------------------------------------------------------------------
 object ConanBuildLinux : Template({
     id("ConanBuildLinux")
     name = "Conan Build Linux"
     description = "One Conan package, one arch, built inside grpc-tc-mirror docker image -> legacy .nupkg"
 
-    vcs { root(AbsoluteId("Bitbucket")) }
+    vcs {
+        root(AbsoluteId("Bitbucket"))
+    }
 
     params {
-        // human knobs (a leaf overrides these)
         param("pkg.name", "")
         param("pkg.version", "")
         param("pkg.arch", "x86_64")   // x86_64 | arm | arm64
-        // derived (leaf leaves as-is)
         param("docker.image", "%REGISTRY%/grpc-tc-mirror-%pkg.arch%:0.1.0")
         param("pkg.driver", "build_%pkg.name%_nodocker.sh")
         param("pkg.output", "output-%pkg.name%-%pkg.arch%")
@@ -186,7 +219,6 @@ object ConanBuildLinux : Template({
                 export REGISTRY="%REGISTRY%"
                 ARCH=%pkg.arch% PKG_VERSION=%pkg.version% bash ./test-astra/%pkg.driver%
             """.trimIndent()
-            // "Run step within Docker container" (TeamCity 2018.1 build-step docker wrapper).
             dockerImage = "%docker.image%"
             dockerImagePlatform = ScriptBuildStep.ImagePlatform.Linux
             dockerPull = true
@@ -206,7 +238,9 @@ object ConanBuildWindows : Template({
     name = "Conan Build Windows"
     description = "One Conan package on a native MSVC agent (no docker) -> legacy .nupkg. NOT yet legacy-byte-validated."
 
-    vcs { root(AbsoluteId("Bitbucket")) }
+    vcs {
+        root(AbsoluteId("Bitbucket"))
+    }
 
     params {
         param("pkg.name", "")
@@ -234,9 +268,11 @@ object ConanBuildWindows : Template({
 object PublishToProGet : Template({
     id("PublishToProGet")
     name = "Publish to Conan ProGet"
-    description = "Collect leaf .nupkg (via artifact deps) and push to the `conan` NuGet feed on ProGet"
+    description = "Collect leaf .nupkg (via artifact deps) and push to the conan NuGet feed on ProGet"
 
-    vcs { root(AbsoluteId("Bitbucket")) }
+    vcs {
+        root(AbsoluteId("Bitbucket"))
+    }
 
     steps {
         script {
@@ -251,15 +287,13 @@ object PublishToProGet : Template({
         equals("system.agent.version", "2")
         doesNotEqual("system.agent.type", "build-windows")
     }
-    // artifact dependencies are wired per concrete publish config (leaf ids differ) —
-    // see conanPackage()/grpcLine() above.
 })
 
 // ---------------------------------------------------------------------------
-// Project root — global params + the package list (THIS is what you edit daily)
+// Project root - global params + the package list (THIS is what you edit daily)
 // ---------------------------------------------------------------------------
 project {
-    description = "CONAN third-party: grpc / fmt / gtest package builds via Kotlin DSL (IN-658). Add a package = one line below."
+    description = "CONAN third-party: grpc / fmt / gtest package builds via Kotlin DSL (IN-658)."
 
     template(ConanBuildLinux)
     template(ConanBuildWindows)
@@ -274,14 +308,13 @@ project {
         param("repoName", "conan")
         param("env.LEGACY_NUPKG_LINKAGE", "shared")        // StaticRT slot -> "static"
         param("env.LEGACY_NUPKG_VERSION_SUFFIX", "")       // ".1" to coexist with legacy on ProGet
-        // With "Store secure values outside of VCS" ON, TC replaces the value with a
-        // credentialsJSON:<uuid> token on first apply — leave the placeholder, add the
-        // real key once in the UI.
+        // With "Store secure values outside of VCS" ON, TC keeps the real token server-side;
+        // set the real ProGet key once in the UI. This placeholder is fine.
         password("ProGet.ApiKey", "credentialsJSON:REPLACE_AFTER_FIRST_APPLY", label = "ProGet API key (conan feed)")
     }
 
     // ===== the three templated package builds =====
     conanPackage(ConanPkg("gtest", "1.17.0"))
     conanPackage(ConanPkg("fmt", "11.2.0"))
-    grpcLine("1601", "1.60.1")   // grpc — driver-pinned line; version is display only
+    grpcLine("1601", "1.60.1")   // grpc - driver-pinned line; version is display only
 }
