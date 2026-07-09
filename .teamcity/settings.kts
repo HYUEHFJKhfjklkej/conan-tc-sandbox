@@ -18,7 +18,7 @@ import jetbrains.buildServer.configs.kotlin.v2018_1.triggers.finishBuildTrigger
  * repoProject/repoName below point it at dev/conan. No new GitVcsRoot, no authMethod.
  *
  * NOTE: this file must reach the TeamCity settings VCS repo BYTE-EXACT (via git, not
- * copy-paste / web editor). ASCII only; do not let an editor turn " into a smart quote.
+ * copy-paste / web editor). ASCII only; keep straight double-quote chars intact.
  */
 
 version = "2018.1"
