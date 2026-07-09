@@ -44,7 +44,7 @@ data class ConanPkg(
 
 /** Standalone single package (gtest, fmt, zlib, …) as a <PKG>_CONAN subtree. */
 fun Project.conanPackage(p: ConanPkg) {
-    val idBase = p.name.replaceFirstChar { it.uppercase() }.replace("-", "")
+    val idBase = p.name.capitalize().replace("-", "")   // Kotlin 1.2 API (TC 2018.1 compiler)
     val leaves = mutableListOf<BuildType>()
 
     fun linuxLeaf(sp: Project, arch: String) = sp.buildType {
@@ -60,7 +60,7 @@ fun Project.conanPackage(p: ConanPkg) {
 
     subProject {
         id("${idBase}_CONAN")
-        name = "${p.name.uppercase()}_CONAN"
+        name = "${p.name.toUpperCase()}_CONAN"
 
         subProject {
             id("${idBase}_Linux"); name = "Linux"
@@ -87,9 +87,9 @@ fun Project.conanPackage(p: ConanPkg) {
 
         buildType {
             id("${idBase}_Publish")
-            name = "PUBLISH ${p.name.uppercase()} TO CONAN PROGET"
+            name = "PUBLISH ${p.name.toUpperCase()} TO CONAN PROGET"
             templates(PublishToProGet)
-            dependencies { leaves.forEach { b -> artifacts(b) { artifactRules = "*.nupkg => nupkg/" } } }
+            dependencies { leaves.forEach { b -> artifacts(b) { artifactRules = "**/*.nupkg => nupkg/" } } }
             triggers { finishBuildTrigger { buildType = leaves.first().id.toString() } }
         }
     }
@@ -150,7 +150,7 @@ fun Project.grpcLine(line: String, version: String,
             id("Grpc_${line}_Publish")
             name = "PUBLISH GRPC_$line TO CONAN PROGET"
             templates(PublishToProGet)
-            dependencies { leaves.forEach { b -> artifacts(b) { artifactRules = "*.nupkg => nupkg/" } } }
+            dependencies { leaves.forEach { b -> artifacts(b) { artifactRules = "**/*.nupkg => nupkg/" } } }
             triggers { finishBuildTrigger { buildType = leaves.first().id.toString() } }
         }
     }
@@ -243,6 +243,13 @@ object PublishToProGet : Template({
             name = "publish nupkg -> ProGet"
             scriptContent = "API_KEY=%ProGet.ApiKey% PROGET_URL=%PROGET_URL% FEED=%FEED% NUPKG_DIR=nupkg ./test-astra/tc_publish_conan.sh"
         }
+    }
+
+    // bash publish must land on a Linux build agent (not a Windows one from the same pool)
+    requirements {
+        startsWith("system.agent.type", "build-")
+        equals("system.agent.version", "2")
+        doesNotEqual("system.agent.type", "build-windows")
     }
     // artifact dependencies are wired per concrete publish config (leaf ids differ) —
     // see conanPackage()/grpcLine() above.
