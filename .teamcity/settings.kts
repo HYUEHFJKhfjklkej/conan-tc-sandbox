@@ -285,7 +285,8 @@ object PublishToProGet : Template({
     steps {
         script {
             name = "publish nupkg -> ProGet"
-            scriptContent = "API_KEY=%ProGet.ApiKey% PROGET_URL=%PROGET_URL% FEED=%FEED% NUPKG_DIR=nupkg ./test-astra/tc_publish_conan.sh"
+            // explicit bash: the exec bit does not survive every checkout path (exit 126)
+            scriptContent = "API_KEY=%ProGet.ApiKey% PROGET_URL=%PROGET_URL% FEED=%FEED% NUPKG_DIR=nupkg bash ./test-astra/tc_publish_conan.sh"
         }
     }
 
