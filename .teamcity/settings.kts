@@ -109,7 +109,8 @@ fun Project.conanPackage(p: ConanPkg) {
             }
             triggers {
                 finishBuildTrigger {
-                    buildType = leaves.first().id.toString()
+                    // v2018_1 API: the property is buildTypeExtId (renamed to buildType in 2019.x)
+                    buildTypeExtId = leaves.first().id.toString()
                 }
             }
         }
@@ -188,7 +189,8 @@ fun Project.grpcLine(
             }
             triggers {
                 finishBuildTrigger {
-                    buildType = leaves.first().id.toString()
+                    // v2018_1 API: the property is buildTypeExtId (renamed to buildType in 2019.x)
+                    buildTypeExtId = leaves.first().id.toString()
                 }
             }
         }
