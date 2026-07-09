@@ -36,7 +36,11 @@ data class ConanPkg(
     val name: String,
     val version: String,
     val arches: List<String> = listOf("x86_64", "arm", "arm64"),
-    val windows: Boolean = true
+    val windows: Boolean = true,
+    // Windows nupkg currently carry a wrong compiler tag (v194 instead of legacy v143,
+    // deployer _short_compiler fix pending) - keep building the win leaf, but do NOT
+    // feed it into PUBLISH until the deployer emits legacy tags. Flip per package.
+    val publishWindows: Boolean = false
 )
 
 /*
@@ -95,7 +99,7 @@ fun Project.conanPackage(p: ConanPkg) {
                     param("win.slot", "win-x64")
                 }
             }
-            leaves.add(winLeaf)
+            if (p.publishWindows) leaves.add(winLeaf)
         }
 
         buildType {
@@ -103,17 +107,33 @@ fun Project.conanPackage(p: ConanPkg) {
             name = "PUBLISH ${p.name.toUpperCase()} TO CONAN PROGET"
             templates(PublishToProGet)
             buildNumberPattern = "${p.version}-%build.counter%"
+            // snapshot + same-chain artifacts: one publish waits for ALL leaves of the
+            // same chain and never mixes builds of different generations; a failed or
+            // cancelled leaf blocks the publish entirely.
             dependencies {
                 leaves.forEach { b ->
-                    artifacts(b) {
-                        artifactRules = "**/*.nupkg => nupkg/"
+                    dependency(b) {
+                        snapshot {
+                            onDependencyFailure = FailureAction.FAIL_TO_START
+                            onDependencyCancel = FailureAction.CANCEL
+                            reuseBuilds = ReuseBuilds.SUCCESSFUL
+                        }
+                        artifacts {
+                            buildRule = sameChainOrLastFinished()
+                            artifactRules = "**/*.nupkg => nupkg/"
+                            cleanDestination = true
+                        }
                     }
                 }
             }
             triggers {
-                finishBuildTrigger {
-                    // v2018_1 API: the property is buildTypeExtId (renamed to buildType in 2019.x)
-                    buildTypeExtId = leaves.first().id.toString()
+                leaves.forEach { b ->
+                    finishBuildTrigger {
+                        // v2018_1 API: buildTypeExtId (renamed to buildType in 2019.x);
+                        // successfulOnly defaults to FALSE in the DSL - set explicitly
+                        buildTypeExtId = b.id.toString()
+                        successfulOnly = true
+                    }
                 }
             }
         }
@@ -129,7 +149,8 @@ fun Project.grpcLine(
     line: String,
     version: String,
     arches: List<String> = listOf("x86_64", "arm", "arm64"),
-    windows: Boolean = true
+    windows: Boolean = true,
+    publishWindows: Boolean = false   // see ConanPkg.publishWindows
 ) {
     val leaves = mutableListOf<BuildType>()
 
@@ -177,7 +198,7 @@ fun Project.grpcLine(
                     param("pkg.output.win", "output-grpc-$line-win")
                 }
             }
-            leaves.add(winLeaf)
+            if (publishWindows) leaves.add(winLeaf)
         }
 
         buildType {
@@ -187,17 +208,26 @@ fun Project.grpcLine(
             buildNumberPattern = "$version-%build.counter%"
             dependencies {
                 leaves.forEach { b ->
-                    artifacts(b) {
-                        artifactRules = "**/*.nupkg => nupkg/"
+                    dependency(b) {
+                        snapshot {
+                            onDependencyFailure = FailureAction.FAIL_TO_START
+                            onDependencyCancel = FailureAction.CANCEL
+                            reuseBuilds = ReuseBuilds.SUCCESSFUL
+                        }
+                        artifacts {
+                            buildRule = sameChainOrLastFinished()
+                            artifactRules = "**/*.nupkg => nupkg/"
+                            cleanDestination = true
+                        }
                     }
                 }
             }
-            triggers {
-                finishBuildTrigger {
-                    // v2018_1 API: the property is buildTypeExtId (renamed to buildType in 2019.x)
-                    buildTypeExtId = leaves.first().id.toString()
-                }
-            }
+            // NO auto-trigger on grpc publishes, run them MANUALLY for now.
+            // Reason: the deployer maps abseil of EVERY line to the same legacy id
+            // absl @ 0.2.0 (LEGACY_DEP_VERSION_MAP), so two lines auto-publishing race
+            // for the same package id on the feed and the loser is silently 409-skipped
+            // with ABI-incompatible bytes left behind. Per-line version suffix scheme is
+            // a lead decision; until then: build automatically, publish by hand.
         }
     }
 }
