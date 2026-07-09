@@ -120,7 +120,7 @@ fun Project.conanPackage(p: ConanPkg) {
                 params {
                     param("pkg.name", p.name)
                     param("pkg.version", p.version)
-                    param("win.profile", "win-v143-x64")
+                    param("win.profile", "win-v142-x64")
                     param("win.slot", "win-x64")
                 }
             }
@@ -217,7 +217,7 @@ fun Project.grpcLine(
                 params {
                     param("pkg.name", "grpc")
                     param("pkg.version", version)
-                    param("win.profile", "win-v143-x64")
+                    param("win.profile", "win-v142-x64")
                     param("win.slot", "win-x64")
                     param("pkg.driver.win", "run_grpc_${line}_win.bat")
                     param("pkg.output.win", "output-grpc-$line-win")
@@ -319,7 +319,7 @@ object ConanBuildWindows : Template({
     params {
         param("pkg.name", "")
         param("pkg.version", "")
-        param("win.profile", "win-v143-x64")   // x86 slot: win-v142-x86
+        param("win.profile", "win-v142-x64")   // legacy x64 slot = v142 (msvc 192); x86 slot: win-v142-x86
         param("win.slot", "win-x64")
         param("pkg.driver.win", "run_%pkg.name%_win.bat")
         param("pkg.output.win", "output-%pkg.name%-win")
