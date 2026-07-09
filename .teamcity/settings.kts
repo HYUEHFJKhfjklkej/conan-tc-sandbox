@@ -316,9 +316,12 @@ project {
         param("repoName", "conan")
         param("env.LEGACY_NUPKG_LINKAGE", "shared")        // StaticRT slot -> "static"
         param("env.LEGACY_NUPKG_VERSION_SUFFIX", "")       // ".1" to coexist with legacy on ProGet
-        // With "Store secure values outside of VCS" ON, TC keeps the real token server-side;
-        // set the real ProGet key once in the UI. This placeholder is fine.
-        password("ProGet.ApiKey", "credentialsJSON:REPLACE_AFTER_FIRST_APPLY", label = "ProGet API key (conan feed)")
+        // ProGet.ApiKey is deliberately NOT defined here. Secrets never go through the
+        // synced DSL: define it once as a password parameter on the PARENT project
+        // (SANDBOX, which is not under versioned settings) - CONAN inherits it and
+        // %ProGet.ApiKey% in the publish step resolves at build time. Defining a fake
+        // credentialsJSON placeholder here breaks apply ("could not decrypt" + TC
+        // auto-commits a patches/ file that then fails with "parameter not found").
     }
 
     // ===== the three templated package builds =====
