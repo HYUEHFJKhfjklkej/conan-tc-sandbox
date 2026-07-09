@@ -311,6 +311,8 @@ object ConanBuildWindows : Template({
 
     requirements {
         contains("teamcity.agent.jvm.os.name", "Windows")
+        // provisioned agents only (conan needs python) - matches the proven manual config
+        exists("python.path")
     }
 })
 
