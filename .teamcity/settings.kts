@@ -10,8 +10,14 @@ import jetbrains.buildServer.configs.kotlin.v2018_1.triggers.finishBuildTrigger
  * Three templated package builds: grpc, fmt, gtest. Each is one <PKG>_CONAN subtree
  * (Linux x86_64 / Linux ARM arm+arm64 / Windows x64 + a PUBLISH config). Describe a
  * package ONCE via conanPackage()/grpcLine(); adding a package is one line, bumping a
- * version is one string. Build logic itself lives in conan-recipes/test-astra/*.sh -
- * the DSL only wires configs + parameters.
+ * version is one string. Build logic itself lives in the conan-recipes test-astra
+ * shell drivers - the DSL only wires configs + parameters.
+ *
+ * CAUTION: Kotlin block comments NEST (unlike Java). Never put the two-character
+ * sequence slash-then-star inside a comment (a path followed by a shell glob is the
+ * classic way) - it opens a nested comment that silently swallows the rest of the
+ * file until the next star-then-slash, and TC reports "Expecting an element" at a
+ * seemingly random spot inside a string literal far below.
  *
  * VCS: builds check out the conan-recipes repo through the EXISTING shared, parametrized
  * root  AbsoluteId("Bitbucket")  (url scm/%repoProject%/%repoName%.git, auth Password/git).
