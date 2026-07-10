@@ -35,7 +35,7 @@ version = "2018.1"
 data class ConanPkg(
     val name: String,
     val version: String,
-    val arches: List<String> = listOf("x86_64", "arm", "arm64"),
+    val arches: List<String> = listOf("x86_64", "x86", "arm", "arm64"),
     val windows: Boolean = true,
     // Windows nupkg currently carry a wrong compiler tag (v194 instead of legacy v143,
     // deployer _short_compiler fix pending) - keep building the win leaf, but do NOT
@@ -58,6 +58,7 @@ data class ConanPkg(
  *     401 = Windows x64 StaticRT (ConanBuildWindows; CMAKE analog 101)
  *     402 = Windows x86 DynRT    (ConanBuildWindows; CMAKE analog 102)
  *     403 = Windows x64 DynRT    (ConanBuildWindows; CMAKE analog 103)
+ *     412 = Linux   x86 DynRT    (ConanBuildLinux x86, 32-bit; CMAKE analog 112)
  *     413 = Linux   x64 DynRT    (ConanBuildLinux x86_64; CMAKE analog 113)
  *     421 = Linux   ARM DynRT    (ConanBuildLinux arm;    CMAKE analog 121)
  *     422 = Linux ARM64 DynRT    (ConanBuildLinux arm64;  CMAKE analog 122)
@@ -67,7 +68,7 @@ data class ConanPkg(
  * Linux is DynamicRT-slot only, content always static .a. Numbers live in ONE
  * place below - trivial to change if the lead assigns a different block.
  */
-val ARCH_CODE = mapOf("x86_64" to "413", "arm" to "421", "arm64" to "422")
+val ARCH_CODE = mapOf("x86_64" to "413", "x86" to "412", "arm" to "421", "arm64" to "422")
 val PUBLISH_CODE = "920"
 
 /** The full legacy Windows matrix (mirrors GR100-103). */
@@ -110,6 +111,8 @@ fun Project.conanPackage(p: ConanPkg) {
             param("pkg.name", p.name)
             param("pkg.version", p.version)
             param("pkg.arch", arch)
+            // 32-bit builds run inside the x86_64 mirror image (-m32), no x86 image exists
+            if (arch == "x86") param("docker.image", "%REGISTRY%/grpc-tc-mirror-x86_64:0.1.0")
         }
     }.also { leaves.add(it) }
 
@@ -122,7 +125,7 @@ fun Project.conanPackage(p: ConanPkg) {
         subProject {
             id("${idBase}_Linux")
             name = "Linux"
-            p.arches.filter { it == "x86_64" }.forEach { linuxLeaf(this, it) }
+            p.arches.filter { it == "x86_64" || it == "x86" }.forEach { linuxLeaf(this, it) }
         }
         subProject {
             id("${idBase}_LinuxARM")
@@ -196,7 +199,7 @@ fun Project.conanPackage(p: ConanPkg) {
 fun Project.grpcLine(
     line: String,
     version: String,
-    arches: List<String> = listOf("x86_64", "arm", "arm64"),
+    arches: List<String> = listOf("x86_64", "x86", "arm", "arm64"),
     windows: Boolean = true,
     publishWindows: Boolean = false   // see ConanPkg.publishWindows
 ) {
@@ -212,6 +215,7 @@ fun Project.grpcLine(
             param("pkg.arch", arch)
             param("pkg.driver", "build_${line}_nodocker.sh")    // override derived
             param("pkg.output", "output-grpc-$line-$arch")      // override derived
+            if (arch == "x86") param("docker.image", "%REGISTRY%/grpc-tc-mirror-x86_64:0.1.0")
         }
     }.also { leaves.add(it) }
 
@@ -223,7 +227,7 @@ fun Project.grpcLine(
         subProject {
             id("Grpc_${line}_Linux")
             name = "Linux"
-            arches.filter { it == "x86_64" }.forEach { linuxLeaf(this, it) }
+            arches.filter { it == "x86_64" || it == "x86" }.forEach { linuxLeaf(this, it) }
         }
         subProject {
             id("Grpc_${line}_LinuxARM")
@@ -288,7 +292,7 @@ fun Project.grpcLine(
 // ---------------------------------------------------------------------------
 object ConanBuildLinux : Template({
     id("ConanBuildLinux")
-    name = "CONAN 413/421/422 BUILD Linux DynRT"
+    name = "CONAN 412/413/421/422 BUILD Linux DynRT"
     description = "One Conan package, one arch, built inside grpc-tc-mirror docker image -> legacy .nupkg"
 
     // legacy-style human-readable build numbers: #1.17.0-5 instead of #5
