@@ -105,7 +105,7 @@ fun Project.conanPackage(p: ConanPkg) {
 
     fun linuxLeaf(sp: Project, arch: String) = sp.buildType {
         id("${idBase}_Build_${arch.replace("-", "_")}")
-        name = "$code${ARCH_CODE.getValue(arch)} BUILD Conan $arch"
+        name = "$code${ARCH_CODE.getValue(arch)} BUILD Conan Linux $arch"
         templates(ConanBuildLinux)
         params {
             param("pkg.name", p.name)
@@ -155,7 +155,7 @@ fun Project.conanPackage(p: ConanPkg) {
 
         buildType {
             id("${idBase}_Publish")
-            name = "$code$PUBLISH_CODE PUBLISH ${p.name.toUpperCase()} TO CONAN PROGET"
+            name = "$code$PUBLISH_CODE PUBLISH TO CONAN PROGET"
             templates(PublishToProGet)
             buildNumberPattern = "${p.version}-%build.counter%"
             // snapshot + same-chain artifacts: one publish waits for ALL leaves of the
@@ -207,7 +207,7 @@ fun Project.grpcLine(
 
     fun linuxLeaf(sp: Project, arch: String) = sp.buildType {
         id("Grpc_${line}_Build_${arch.replace("-", "_")}")
-        name = "GR${ARCH_CODE.getValue(arch)} BUILD Conan $arch"
+        name = "GR${ARCH_CODE.getValue(arch)} BUILD Conan Linux $arch"
         templates(ConanBuildLinux)
         params {
             param("pkg.name", "grpc")
@@ -258,7 +258,7 @@ fun Project.grpcLine(
 
         buildType {
             id("Grpc_${line}_Publish")
-            name = "GR$PUBLISH_CODE PUBLISH GRPC_$line TO CONAN PROGET"
+            name = "GR$PUBLISH_CODE PUBLISH TO CONAN PROGET"
             templates(PublishToProGet)
             buildNumberPattern = "$version-%build.counter%"
             dependencies {
