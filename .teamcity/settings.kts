@@ -54,18 +54,37 @@ data class ConanPkg(
  * 800-860, 888 DOCKER, 900/910 CMAKE PACKAGE/RELEASE.
  * OUR Conan templates take the FREE 4xx block, tail digits mirror CMAKE:
  *
- *     403 = Windows x64 DynRT   (ConanBuildWindows;  CMAKE analog 103)
- *     413 = Linux   x64 DynRT   (ConanBuildLinux x86_64; CMAKE analog 113)
- *     421 = Linux   ARM DynRT   (ConanBuildLinux arm;    CMAKE analog 121)
- *     422 = Linux ARM64 DynRT   (ConanBuildLinux arm64;  CMAKE analog 122)
- *     920 = Conan publish stage (PublishToProGet; CMAKE PACKAGE is 900) - free in 9xx
+ *     400 = Windows x86 StaticRT (ConanBuildWindows; CMAKE analog 100)
+ *     401 = Windows x64 StaticRT (ConanBuildWindows; CMAKE analog 101)
+ *     402 = Windows x86 DynRT    (ConanBuildWindows; CMAKE analog 102)
+ *     403 = Windows x64 DynRT    (ConanBuildWindows; CMAKE analog 103)
+ *     413 = Linux   x64 DynRT    (ConanBuildLinux x86_64; CMAKE analog 113)
+ *     421 = Linux   ARM DynRT    (ConanBuildLinux arm;    CMAKE analog 121)
+ *     422 = Linux ARM64 DynRT    (ConanBuildLinux arm64;  CMAKE analog 122)
+ *     920 = Conan publish stage  (PublishToProGet; CMAKE PACKAGE is 900) - free in 9xx
  *
- * DynamicRT slot only for now (LEGACY_NUPKG_LINKAGE=shared). Numbers live in ONE
+ * StaticRT is a Windows-only slot (runtime /MT + LEGACY_NUPKG_LINKAGE=static);
+ * Linux is DynamicRT-slot only, content always static .a. Numbers live in ONE
  * place below - trivial to change if the lead assigns a different block.
  */
 val ARCH_CODE = mapOf("x86_64" to "413", "arm" to "421", "arm64" to "422")
-val WIN_CODE = "403"
 val PUBLISH_CODE = "920"
+
+/** The full legacy Windows matrix (mirrors GR100-103). */
+data class WinVariant(
+    val codeDigits: String,   // 400..403
+    val idSuffix: String,     // build-config id tail (stable, never rename)
+    val profile: String,      // conan profile in conan-recipes/profiles/
+    val linkage: String,      // deployer slot tag: shared = DynRT, static = StaticRT
+    val slotDir: String,      // artifact subdir
+    val label: String
+)
+val WIN_VARIANTS = listOf(
+    WinVariant("400", "win_x86_static", "win-v142-x86-static", "static", "win-x86-static", "Windows x86 StaticRT"),
+    WinVariant("401", "win_x64_static", "win-v142-x64-static", "static", "win-x64-static", "Windows x64 StaticRT"),
+    WinVariant("402", "win_x86",        "win-v142-x86",        "shared", "win-x86",        "Windows x86 DynamicRT"),
+    WinVariant("403", "win_x64",        "win-v142-x64",        "shared", "win-x64",        "Windows x64 DynamicRT")
+)
 
 /*
  * Tree shape produced by both factories (matches the TC-generated FMT_CONAN):
@@ -113,18 +132,22 @@ fun Project.conanPackage(p: ConanPkg) {
         if (p.windows) subProject {
             id("${idBase}_Windows")
             name = "Windows"
-            val winLeaf = buildType {
-                id("${idBase}_Build_win_x64")
-                name = "$code$WIN_CODE BUILD Conan Windows x64"
-                templates(ConanBuildWindows)
-                params {
-                    param("pkg.name", p.name)
-                    param("pkg.version", p.version)
-                    param("win.profile", "win-v142-x64")
-                    param("win.slot", "win-x64")
+            WIN_VARIANTS.forEach { w ->
+                val winLeaf = buildType {
+                    id("${idBase}_Build_${w.idSuffix}")
+                    name = "$code${w.codeDigits} BUILD Conan ${w.label}"
+                    templates(ConanBuildWindows)
+                    params {
+                        param("pkg.name", p.name)
+                        param("pkg.version", p.version)
+                        param("win.profile", w.profile)
+                        param("win.slot", w.slotDir)
+                        // StaticRT slot: override the project-level "shared"
+                        if (w.linkage == "static") param("env.LEGACY_NUPKG_LINKAGE", "static")
+                    }
                 }
+                if (p.publishWindows) leaves.add(winLeaf)
             }
-            if (p.publishWindows) leaves.add(winLeaf)
         }
 
         buildType {
@@ -210,20 +233,23 @@ fun Project.grpcLine(
         if (windows) subProject {
             id("Grpc_${line}_Windows")
             name = "Windows"
-            val winLeaf = buildType {
-                id("Grpc_${line}_Build_win_x64")
-                name = "GR$WIN_CODE BUILD Conan Windows x64"
-                templates(ConanBuildWindows)
-                params {
-                    param("pkg.name", "grpc")
-                    param("pkg.version", version)
-                    param("win.profile", "win-v142-x64")
-                    param("win.slot", "win-x64")
-                    param("pkg.driver.win", "run_grpc_${line}_win.bat")
-                    param("pkg.output.win", "output-grpc-$line-win")
+            WIN_VARIANTS.forEach { w ->
+                val winLeaf = buildType {
+                    id("Grpc_${line}_Build_${w.idSuffix}")
+                    name = "GR${w.codeDigits} BUILD Conan ${w.label}"
+                    templates(ConanBuildWindows)
+                    params {
+                        param("pkg.name", "grpc")
+                        param("pkg.version", version)
+                        param("win.profile", w.profile)
+                        param("win.slot", w.slotDir)
+                        param("pkg.driver.win", "run_grpc_${line}_win.bat")
+                        param("pkg.output.win", "output-grpc-$line-win")
+                        if (w.linkage == "static") param("env.LEGACY_NUPKG_LINKAGE", "static")
+                    }
                 }
+                if (publishWindows) leaves.add(winLeaf)
             }
-            if (publishWindows) leaves.add(winLeaf)
         }
 
         buildType {
@@ -306,7 +332,7 @@ object ConanBuildLinux : Template({
 
 object ConanBuildWindows : Template({
     id("ConanBuildWindows")
-    name = "CONAN 403 BUILD Windows x64 DynRT"
+    name = "CONAN 400-403 BUILD Windows (x86/x64, StaticRT/DynRT)"
     description = "One Conan package on a native MSVC agent (no docker) -> legacy .nupkg. NOT yet legacy-byte-validated."
 
     // legacy-style human-readable build numbers: #1.17.0-5 instead of #5
