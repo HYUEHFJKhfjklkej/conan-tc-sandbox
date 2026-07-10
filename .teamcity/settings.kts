@@ -326,7 +326,7 @@ object ConanBuildLinux : Template({
         }
     }
 
-    artifactRules = "%pkg.output%/*.nupkg => %pkg.arch%"
+    artifactRules = "%pkg.output%/*.nupkg"   // flat: filename already carries the arch
 
     requirements {
         equals("system.agent.type", "build-linux")
@@ -362,7 +362,7 @@ object ConanBuildWindows : Template({
         }
     }
 
-    artifactRules = "%pkg.output.win%\\*.nupkg => %win.slot%"
+    artifactRules = "%pkg.output.win%\\*.nupkg"   // flat: filename already carries arch+slot
 
     requirements {
         contains("teamcity.agent.jvm.os.name", "Windows")
