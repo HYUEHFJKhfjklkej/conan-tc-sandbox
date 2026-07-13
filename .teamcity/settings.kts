@@ -118,9 +118,7 @@ fun Project.conanPackage(p: ConanPkg) {
 
     subProject {
         id("${idBase}_CONAN")
-        // version lives in the display NAME (readable in the tree at a glance) while the
-        // id stays version-free - bumping a version keeps build history continuous
-        name = "${p.name.toUpperCase()}_CONAN  ${p.version}"
+        name = "${p.name.toUpperCase()}_CONAN"
 
         subProject {
             id("${idBase}_Linux")
@@ -221,8 +219,7 @@ fun Project.grpcLine(
 
     subProject {
         id("Grpc_${line}_CONAN")
-        // real stack version readable in the tree; id keeps the line only
-        name = "GRPC_CONAN  $version  (line $line)"
+        name = "GRPC_${line}_CONAN"
 
         subProject {
             id("Grpc_${line}_Linux")
