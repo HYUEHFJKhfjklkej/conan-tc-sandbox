@@ -353,6 +353,12 @@ object ConanBuildWindows : Template({
         param("win.slot", "win-x64")
         param("pkg.driver.win", "run_%pkg.name%_win.bat")
         param("pkg.output.win", "output-%pkg.name%-win")
+        // Агент крутится под SYSTEM -> дефолтный конан-кэш попадает в
+        // C:\Windows\System32\config\systemprofile\.conan2. Для 32-битных тулзов
+        // (nmake из vcvars x86) WoW64-редиректор подменяет System32 на SysWOW64 -
+        // nmake "не видит" makefile, который сам же Configure создал (U1064).
+        // Кэш ВНЕ System32 снимает редирекцию для всей матрицы (x64 не страдает).
+        param("env.CONAN_HOME", """C:\ProgramData\conan2""")
     }
 
     steps {
