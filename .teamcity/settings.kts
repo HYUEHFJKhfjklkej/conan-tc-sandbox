@@ -429,6 +429,7 @@ project {
     // ===== the templated package builds =====
     conanPackage(ConanPkg("gtest", "1.17.0"))
     conanPackage(ConanPkg("fmt", "11.2.0"))
+    conanPackage(ConanPkg("cjson", "1.7.19"))   // wave 1: code derived = CJ
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
