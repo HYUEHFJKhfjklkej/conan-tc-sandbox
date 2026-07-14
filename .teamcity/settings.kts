@@ -432,12 +432,12 @@ project {
     conanPackage(ConanPkg("cjson", "1.7.19"))   // wave 1: code derived = CJ
     conanPackage(ConanPkg("expat", "2.8.2"))              // EX
     conanPackage(ConanPkg("tinyxml2", "11.0.0"))          // TI
-    conanPackage(ConanPkg("sqlite3", "3.53.3"))           // SQ (nupkg: sqlite, легаси 3.15.2)
+    conanPackage(ConanPkg("sqlite3", "3.53.3"))           // SQ (легаси sqlite 3.15.2; имя новое)
     conanPackage(ConanPkg("jansson", "2.15.1"))           // JA (апстрим новее CCI)
     conanPackage(ConanPkg("jsoncpp", "1.9.8"))            // JS (апстрим новее CCI)
     conanPackage(ConanPkg("lua", "5.5.0"))                // LU (легаси 5.4.2 - мажор-бамп)
     conanPackage(ConanPkg("libzip", "1.11.4", code = "LZ"))
-    conanPackage(ConanPkg("nlohmann_json", "3.12.0", code = "NJ"))   // nupkg: json (легаси 3.7.0)
+    conanPackage(ConanPkg("nlohmann_json", "3.12.0", code = "NJ"))   // легаси json 3.7.0; имя новое
     // pthreads4w - Windows-only пакет: линуксовых арок нет вовсе
     conanPackage(ConanPkg("pthreads4w", "3.0.0", code = "PW", arches = listOf()))
     // grpc lines - driver-pinned (7-package stack each); version is display only.
