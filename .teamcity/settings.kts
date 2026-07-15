@@ -440,6 +440,19 @@ project {
     conanPackage(ConanPkg("nlohmann_json", "3.12.0", code = "NJ"))   // легаси json 3.7.0; имя новое
     // pthreads4w - Windows-only пакет: линуксовых арок нет вовсе
     conanPackage(ConanPkg("pthreads4w", "3.0.0", code = "PW", arches = listOf()))
+
+    // ===== волна 2 =====
+    conanPackage(ConanPkg("libcurl", "8.21.0", code = "CU"))
+    conanPackage(ConanPkg("libxml2", "2.13.8", code = "XL"))
+    conanPackage(ConanPkg("mbedtls", "3.6.6", code = "MB"))
+    conanPackage(ConanPkg("libssh2", "1.11.1", code = "SH"))
+    conanPackage(ConanPkg("zeromq", "4.3.5", code = "ZM"))
+    conanPackage(ConanPkg("mosquitto", "2.0.22", code = "MQ"))
+    conanPackage(ConanPkg("libmodbus", "3.1.12", code = "MD"))
+    conanPackage(ConanPkg("net-snmp", "5.9.4", code = "NS"))
+    conanPackage(ConanPkg("libpq", "16.14", code = "PQ"))
+    conanPackage(ConanPkg("xerces-c", "3.3.0", code = "XC"))
+    conanPackage(ConanPkg("pcre", "8.45", code = "PC"))   // транзитив net-snmp
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
