@@ -453,6 +453,12 @@ project {
     conanPackage(ConanPkg("libpq", "16.14", code = "PQ"))
     conanPackage(ConanPkg("xerces-c", "3.3.0", code = "XC"))
     conanPackage(ConanPkg("pcre", "8.45", code = "PC"))   // транзитив net-snmp
+
+    // ===== волна 3 (часть: рецепт есть/написан с нуля) =====
+    conanPackage(ConanPkg("libiec61850", "1.6.1", code = "IE"))
+    conanPackage(ConanPkg("mongoose", "7.22", code = "MG"))
+    conanPackage(ConanPkg("nanopb", "0.4.9.1", code = "NP"))
+    conanPackage(ConanPkg("soem", "2.0.0", code = "SO"))   // Linux/Windows only (не проверялся на Mac)
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
