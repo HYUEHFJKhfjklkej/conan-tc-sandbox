@@ -463,6 +463,9 @@ project {
     // packages-linux/. Win-слоты выключены до ground-truth сверки легаси DBUS
     // (есть ли win .nupkg вообще) + meson/ninja на win-агенте.
     conanPackage(ConanPkg("dbus", "1.15.8", windows = false, code = "DB"))
+    // snap7: рецепт с нуля (upstream = sourceforge .7z, переупакован в src/,
+    // HELP [30]); win-сборка CMake-бэкендом не валидирована — не публикуется.
+    conanPackage(ConanPkg("snap7", "1.4.2", code = "SN"))
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
