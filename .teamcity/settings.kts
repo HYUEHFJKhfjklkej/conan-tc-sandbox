@@ -466,6 +466,10 @@ project {
     // snap7: рецепт с нуля (upstream = sourceforge .7z, переупакован в src/,
     // HELP [30]); win-сборка CMake-бэкендом не валидирована — не публикуется.
     conanPackage(ConanPkg("snap7", "1.4.2", code = "SN"))
+    // matiec: tool-пакет (iec2c/iec2iec, либ нет); версия = 0.1.<дата коммита>
+    // (тегов у upstream нет), flex/bison-выходы предзапечены в src/ (HELP [31]).
+    // Windows OFF: upstream MinGW-only (<getopt.h> в main.cc), MSVC не поддержан.
+    conanPackage(ConanPkg("matiec", "0.1.20260512", windows = false, code = "MT"))
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
