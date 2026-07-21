@@ -459,6 +459,10 @@ project {
     conanPackage(ConanPkg("mongoose", "7.22", code = "MG"))
     conanPackage(ConanPkg("nanopb", "0.4.9.1", code = "NP"))
     conanPackage(ConanPkg("soem", "2.0.0", code = "SO"))   // Linux/Windows only (не проверялся на Mac)
+    // dbus: единственный meson-пакет; драйвер сам доставляет meson/ninja из
+    // packages-linux/. Win-слоты выключены до ground-truth сверки легаси DBUS
+    // (есть ли win .nupkg вообще) + meson/ninja на win-агенте.
+    conanPackage(ConanPkg("dbus", "1.15.8", windows = false, code = "DB"))
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
