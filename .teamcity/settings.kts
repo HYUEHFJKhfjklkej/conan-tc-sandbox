@@ -470,6 +470,10 @@ project {
     // (тегов у upstream нет), flex/bison-выходы предзапечены в src/ (HELP [31]).
     // Windows OFF: upstream MinGW-only (<getopt.h> в main.cc), MSVC не поддержан.
     conanPackage(ConanPkg("matiec", "0.1.20260512", windows = false, code = "MT"))
+    // qwt: Qt НЕ пакетируется (5.15.2 в базовом образе станка, QT5_ROOT_DIR);
+    // только x86_64 (arm-образы Qt не несут, потребитель el_conf — десктоп);
+    // версия = легаси-пин el_conf 6.2.0, НЕ upstream 6.3.0 (HELP [32]).
+    conanPackage(ConanPkg("qwt", "6.2.0", arches = listOf("x86_64"), windows = false, code = "QW"))
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
