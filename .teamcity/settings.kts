@@ -482,6 +482,11 @@ project {
     // qxorm: лицензия GPL3/коммерч QXPL — промоушен через лида (HELP [34]).
     conanPackage(ConanPkg("qwindowkit", "1.5.0", arches = listOf("x86_64"), code = "WK"))
     conanPackage(ConanPkg("qxorm", "1.5.1", arches = listOf("x86_64"), code = "QX"))
+    // волна 4 (пропуски бэклога): классическая пара glog->gflags. Опции
+    // (nothreads=False, with_unwind=False) зашиты в драйверы. glog-ран
+    // эмитит оба .nupkg — gflags-конфиг опционален.
+    conanPackage(ConanPkg("gflags", "2.3.0", code = "GF"))
+    conanPackage(ConanPkg("glog", "0.7.1", code = "GL"))
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
