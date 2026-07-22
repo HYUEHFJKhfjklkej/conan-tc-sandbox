@@ -477,6 +477,11 @@ project {
     // не несут); x86-win-слоты требуют 32-битный Qt на агенте — есть ли он,
     // покажет первый прогон. Версия = легаси-пин el_conf 6.2.0 (HELP [32]).
     conanPackage(ConanPkg("qwt", "6.2.0", arches = listOf("x86_64"), code = "QW"))
+    // qwindowkit/qxorm: Qt-схема как у qwt (QT5_ROOT_DIR, CMake); Linux
+    // только x86_64. Версии = upstream latest (легаси-пинов нет).
+    // qxorm: лицензия GPL3/коммерч QXPL — промоушен через лида (HELP [34]).
+    conanPackage(ConanPkg("qwindowkit", "1.5.0", arches = listOf("x86_64"), code = "WK"))
+    conanPackage(ConanPkg("qxorm", "1.5.1", arches = listOf("x86_64"), code = "QX"))
     // grpc lines - driver-pinned (7-package stack each); version is display only.
     // Each line is its own GRPC_<line>_CONAN subtree; add a line = add a call.
     grpcLine("1601", "1.60.1")   // parity with legacy GR910
